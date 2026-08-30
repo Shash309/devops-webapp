@@ -1,5 +1,47 @@
 <!DOCTYPE html>
-<html>
-<head><title>DevOps Web App - CI Bot</title></head>
-<body><h1>Hello from DevOps Pipeline</h1></body>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>DevOps CI/CD Demo</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>DevOps CI/CD Automation</h1>
+
+        <p>
+            This website is automatically built, tested,
+            deployed and monitored using DevOps practices.
+        </p>
+
+        <div class="card">
+
+            <h2>Pipeline Status</h2>
+
+            <ul>
+                <li>Version Control: GitHub</li>
+                <li>Continuous Integration: GitHub Actions</li>
+                <li>ChatOps: Slack</li>
+                <li>Deployment: Netlify</li>
+            </ul>
+
+        </div>
+
+        <button onclick="showMessage()">
+            Test Application
+        </button>
+
+        <p id="message"></p>
+
+    </div>
+
+    <script src="script.js"></script>
+
+</body>
 </html>
