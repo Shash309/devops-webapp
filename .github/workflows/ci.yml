@@ -2,28 +2,50 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
 
 jobs:
+
   build:
+
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
 
-      - name: Build project
-        run: echo "Build successful"
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Notify Slack on success
-        if: success()
+      - name: Display Environment Information
         run: |
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"✅ Build succeeded on branch main!"}' \
-          ${{ secrets.SLACK_WEBHOOK_URL }}
+          echo "CI Pipeline Started"
+          echo "Running on:"
+          uname -a
 
-      - name: Notify Slack on failure
-        if: failure()
+      - name: Verify Project Files
         run: |
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"❌ Build failed on branch main."}' \
-          ${{ secrets.SLACK_WEBHOOK_URL }}
+          echo "Checking project files..."
+          ls -la
+
+      - name: Validate HTML File
+        run: |
+          test -f index.html
+          echo "index.html found successfully"
+
+      - name: Validate CSS File
+        run: |
+          test -f style.css
+          echo "style.css found successfully"
+
+      - name: Validate JavaScript File
+        run: |
+          test -f script.js
+          echo "script.js found successfully"
+
+      - name: CI Build Completed
+        run: |
+          echo "Build and validation completed successfully"
