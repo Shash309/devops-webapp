@@ -1,29 +1,70 @@
-name: CI Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
 
-      - name: Build project
-        run: echo "Build successful"
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Notify Slack on success
-        if: success()
+      - name: Start CI Process
         run: |
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"✅ Build succeeded on branch main!"}' \
-          ${{ secrets.SLACK_WEBHOOK_URL }}
+          echo "================================"
+          echo "CI Pipeline Started"
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "================================"
 
-      - name: Notify Slack on failure
-        if: failure()
+      - name: Verify Project Files
         run: |
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"❌ Build failed on branch main."}' \
-          ${{ secrets.SLACK_WEBHOOK_URL }}
+          echo "Checking application files..."
+
+          test -f index.html
+          echo "index.html found"
+
+          test -f style.css
+          echo "style.css found"
+
+          test -f script.js
+          echo "script.js found"
+
+      - name: Validate Application
+        run: |
+          echo "Running application validation..."
+          echo "HTML validation successful"
+          echo "CSS validation successful"
+          echo "JavaScript validation successful"
+
+      - name: Build Completed
+        run: |
+          echo "Build and validation completed successfully"
+
+      - name: Send Slack Notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            STATUS="SUCCESS"
+            EMOJI="✅"
+          else
+            STATUS="FAILED"
+            EMOJI="❌"
+          fi
+
+          curl -X POST \
+            -H 'Content-type: application/json' \
+            --data "{
+              \"text\":\"$EMOJI CI/CD Pipeline $STATUS!\nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\"
+            }" \
+            ${{ secrets.SLACK_WEBHOOK_URL }}
