@@ -50,7 +50,11 @@ jobs:
 
       - name: Compute image tag
         id: meta
-        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          # GHCR/OCI repository names must be lowercase; the GitHub owner
+          # login (e.g. "Shash309") is not guaranteed to be.
+          echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -89,15 +93,15 @@ jobs:
           context: ./app
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/devops-lab-app:${{ steps.meta.outputs.tag }}
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/devops-lab-app:latest
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.owner_lc }}/devops-lab-app:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.owner_lc }}/devops-lab-app:latest
 
       - name: Pipeline summary
         run: |
           echo "### VLE-5 CI Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "- Docker image built and smoke-tested: PASS" >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "- Pushed to: ghcr.io/${{ github.repository_owner }}/devops-lab-app:${{ steps.meta.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Pushed to: ghcr.io/${{ steps.meta.outputs.owner_lc }}/devops-lab-app:${{ steps.meta.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "- Registry push skipped (not a push to main)" >> "$GITHUB_STEP_SUMMARY"
           fi
