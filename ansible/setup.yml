@@ -1,0 +1,87 @@
+---
+# ==========================================================
+# Playbook: Install, start, and enable Docker on EC2 hosts
+#
+# Targets: [servers] group (Dev-Server-1, Dev-Server-2)
+# Idempotent: safe to re-run; tasks use module state, not
+# shell commands, so re-running makes no changes if Docker
+# is already installed/running/enabled.
+# ==========================================================
+
+- name: Configure EC2 instances with Docker
+  hosts: servers
+  become: yes
+  gather_facts: yes
+
+  tasks:
+
+    - name: Detect OS family and package manager
+      ansible.builtin.debug:
+        msg: "OS family: {{ ansible_facts['os_family'] }}, distribution: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
+
+    # --- Amazon Linux 2023 uses dnf; Amazon Linux 2 uses yum with amazon-linux-extras ---
+
+    - name: Update package metadata (dnf-based systems, e.g. Amazon Linux 2023)
+      ansible.builtin.dnf:
+        update_cache: yes
+      when: ansible_facts['pkg_mgr'] == 'dnf'
+
+    - name: Update package metadata (yum-based systems, e.g. Amazon Linux 2)
+      ansible.builtin.yum:
+        update_cache: yes
+      when: ansible_facts['pkg_mgr'] == 'yum'
+
+    - name: Install Docker (dnf-based systems - Amazon Linux 2023)
+      ansible.builtin.dnf:
+        name: docker
+        state: present
+      when: ansible_facts['pkg_mgr'] == 'dnf'
+
+    - name: Install Docker (yum-based systems - Amazon Linux 2, via amazon-linux-extras)
+      ansible.builtin.yum:
+        name: docker
+        state: present
+      when: ansible_facts['pkg_mgr'] == 'yum'
+
+    - name: Ensure Docker service is started
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+
+    - name: Ensure Docker service is enabled at boot
+      ansible.builtin.systemd:
+        name: docker
+        enabled: yes
+
+    - name: Add ec2-user to the docker group (allows running docker without sudo)
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Verify Docker version
+      ansible.builtin.command: docker --version
+      register: docker_version
+      changed_when: false
+
+    - name: Show Docker version
+      ansible.builtin.debug:
+        var: docker_version.stdout
+
+    - name: Verify Docker service status
+      ansible.builtin.command: systemctl is-active docker
+      register: docker_active
+      changed_when: false
+
+    - name: Show Docker service status
+      ansible.builtin.debug:
+        var: docker_active.stdout
+
+    - name: Verify Docker is enabled at boot
+      ansible.builtin.command: systemctl is-enabled docker
+      register: docker_enabled
+      changed_when: false
+
+    - name: Show Docker enabled status
+      ansible.builtin.debug:
+        var: docker_enabled.stdout

@@ -1,0 +1,22 @@
+# Secrets / credentials - never commit
+*.pem
+*.key
+.env
+.env.*
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+tfplan.out
+crash.log
+crash.*.log
+
+# Ansible - environment-specific inventory (real EC2 IPs)
+ansible/inventory.ini
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db

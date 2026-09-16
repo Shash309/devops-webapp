@@ -1,0 +1,11 @@
+# Never commit state, plans, or variable files that may contain
+# environment-specific / sensitive values.
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
+tfplan.out
+crash.log
+crash.*.log

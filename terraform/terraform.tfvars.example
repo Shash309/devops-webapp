@@ -1,0 +1,13 @@
+# Copy this file to terraform.tfvars and fill in your values.
+# terraform.tfvars is gitignored - it is never committed.
+
+aws_region = "us-east-1"
+
+# REQUIRED: your current public IP in /32 form, used to restrict SSH access.
+# Find it with: curl -s https://checkip.amazonaws.com
+ssh_allowed_cidr = "203.0.113.10/32"
+
+# Name of an EXISTING AWS EC2 key pair (must already exist in your account).
+key_name = "vockey"
+
+project_name = "Dev"

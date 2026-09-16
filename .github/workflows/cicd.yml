@@ -1,0 +1,104 @@
+name: VLE-5 DevOps CI/CD Pipeline
+
+# Scope: this workflow is separate from the existing VLE-3 "CI/CD Pipeline"
+# (ci.yml). It covers ONLY the app/ folder introduced in VLE-5: it builds a
+# Docker image, smoke-tests it, and pushes it to GHCR.
+#
+# IMPORTANT - what this workflow does NOT do: it does not deploy to
+# Kubernetes. The Kubernetes cluster for this experiment is a local
+# Minikube instance running on the developer's workstation, which a
+# GitHub-hosted runner has no network path to reach. Deployment to
+# Kubernetes is demonstrated locally (see k8s/README.md) using
+# `minikube image load` + `kubectl apply`, not from this workflow.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - ".github/workflows/cicd.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/**"
+      - ".github/workflows/cicd.yml"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/devops-lab-app
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-test:
+    name: Validate, Build, Smoke-Test
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate application files exist
+        run: |
+          test -f app/index.html
+          test -f app/Dockerfile
+          echo "Application files present."
+
+      - name: Compute image tag
+        id: meta
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          push: false
+          load: true
+          tags: devops-lab-app:ci-${{ steps.meta.outputs.tag }}
+
+      - name: Docker smoke test
+        run: |
+          docker run -d --name smoke-test -p 8080:80 devops-lab-app:ci-${{ steps.meta.outputs.tag }}
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/ || true)
+            if [ "$code" = "200" ]; then echo "Smoke test passed (HTTP $code)"; break; fi
+            sleep 2
+          done
+          if [ "$code" != "200" ]; then echo "Smoke test FAILED (HTTP $code)"; exit 1; fi
+          docker rm -f smoke-test
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/devops-lab-app:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/devops-lab-app:latest
+
+      - name: Pipeline summary
+        run: |
+          echo "### VLE-5 CI Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Docker image built and smoke-tested: PASS" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "- Pushed to: ghcr.io/${{ github.repository_owner }}/devops-lab-app:${{ steps.meta.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Registry push skipped (not a push to main)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "- Kubernetes deployment: NOT performed by this workflow - demonstrated locally on Minikube (see k8s/README.md), since a GitHub-hosted runner cannot reach a local cluster." >> "$GITHUB_STEP_SUMMARY"
