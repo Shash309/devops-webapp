@@ -86,6 +86,22 @@ resource "aws_security_group" "dev_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "k3s Kubernetes API from admin IP only"
+    from_port   = 6443
+    to_port     = 6443
+    protocol    = "tcp"
+    cidr_blocks = [var.ssh_allowed_cidr]
+  }
+
+  ingress {
+    description = "k3s node-to-node traffic (API, kubelet, flannel VXLAN) within this SG only"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    self        = true
+  }
+
   egress {
     description = "Allow all outbound traffic"
     from_port   = 0

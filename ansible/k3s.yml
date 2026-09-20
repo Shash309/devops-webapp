@@ -1,0 +1,95 @@
+---
+# ==========================================================
+# Playbook: Install a 2-node k3s (lightweight Kubernetes)
+# cluster across the VLE-4 EC2 instances.
+#
+# server1 -> k3s server (control-plane + datastore)
+# server2 -> k3s agent, joined to server1 over its private IP
+#
+# This gives the project a second, network-reachable Kubernetes
+# target in addition to the local Minikube cluster used for the
+# primary demo - useful because, unlike Minikube on a personal
+# workstation, a cluster on EC2 has a public IP a grader (or a
+# properly configured CI runner with the right security-group
+# access) could actually reach.
+# ==========================================================
+
+- name: Install k3s server on the first node
+  hosts: server1
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Check if k3s is already installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_bin
+
+    - name: Install k3s server
+      ansible.builtin.shell: curl -sfL https://get.k3s.io | sh -
+      when: not k3s_bin.stat.exists
+      environment:
+        INSTALL_K3S_EXEC: "--write-kubeconfig-mode 644"
+
+    - name: Wait for node-token file to exist
+      ansible.builtin.wait_for:
+        path: /var/lib/rancher/k3s/server/node-token
+        timeout: 60
+
+    - name: Read the node token
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: node_token_raw
+
+    - name: Store the node token as a fact for the agent
+      ansible.builtin.set_fact:
+        k3s_node_token: "{{ node_token_raw.content | b64decode | trim }}"
+
+    - name: Verify k3s server is active
+      ansible.builtin.command: systemctl is-active k3s
+      register: k3s_status
+      changed_when: false
+
+    - name: Show k3s server status
+      ansible.builtin.debug:
+        var: k3s_status.stdout
+
+    - name: Fetch kubeconfig back to the control machine
+      ansible.builtin.fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: ./k3s-kubeconfig-raw.yaml
+        flat: yes
+
+- name: Install k3s agent on the second node, joined to server1
+  hosts: server2
+  become: yes
+  gather_facts: yes
+  vars:
+    # Use server1's PRIVATE IP for node-to-node cluster traffic. On this
+    # VPC, traffic from one EC2 instance to another's PUBLIC IP does not
+    # reliably hairpin back through the Internet Gateway (confirmed by a
+    # direct curl test: the public IP timed out, the private IP answered
+    # in ~60ms) - the private IP is also simply the correct, standard
+    # choice for intra-VPC cluster traffic, keeping it off the public
+    # internet entirely.
+    k3s_url: "https://{{ hostvars['server1'].ansible_default_ipv4.address }}:6443"
+  tasks:
+    - name: Check if k3s-agent is already installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_agent_bin
+
+    - name: Install k3s agent and join the cluster
+      ansible.builtin.shell: curl -sfL https://get.k3s.io | sh -
+      when: not k3s_agent_bin.stat.exists
+      environment:
+        K3S_URL: "{{ k3s_url }}"
+        K3S_TOKEN: "{{ hostvars['server1'].k3s_node_token }}"
+
+    - name: Verify k3s-agent is active
+      ansible.builtin.command: systemctl is-active k3s-agent
+      register: k3s_agent_status
+      changed_when: false
+
+    - name: Show k3s-agent status
+      ansible.builtin.debug:
+        var: k3s_agent_status.stdout
